@@ -186,6 +186,7 @@ Resources:
                             "Next": "List EBS Volume Lambda",
                             "Parameters": {
                               "bear.$": "$$.Execution.Input.bear",
+                              "base_url.$": "$$.Execution.Input.base_url",
                               "source_account.$": "$$.Execution.Input.source_account",
                               "source_region.$": "$$.Execution.Input.source_region",
                               "start_search_day_offset.$": "$.day_offset",
@@ -233,6 +234,7 @@ Resources:
                             "Parameters": {
                               "inputs.$": "$.inputs",
                               "bear.$": "$$.Execution.Input.bear",
+                              "base_url.$": "$$.Execution.Input.base_url",
                               "debug.$": "$$.Execution.Input.debug",
                               "target_account.$": "$$.Execution.Input.target_account",
                               "target_region.$": "$$.Execution.Input.target_region",
@@ -282,6 +284,7 @@ Resources:
                             "Parameters": {
                               "inputs.$": "$.inputs",
                               "bear.$": "$$.Execution.Input.bear",
+                              "base_url.$": "$$.Execution.Input.base_url",
                               "debug.$": "$$.Execution.Input.debug"
                             },
                             "Next": "Monitor Task Lambda"
@@ -320,14 +323,14 @@ Resources:
                               {
                                 "Variable": "$.status",
                                 "NumericEquals": 205,
-                                "Next": "Delay 30"
+                                "Next": "Delay 5 mins"
                               }
                             ],
                             "Default": "Fail"
                           },
-                          "Delay 30": {
+                          "Delay 5 mins": {
                             "Type": "Wait",
-                            "Seconds": 30,
+                            "Seconds": 300,
                             "Next": "Re:set inputs for Monitor Task"
                           },
                           "Inputs for Create Snapshot": {
@@ -335,6 +338,7 @@ Resources:
                             "Parameters": {
                               "inputs.$": "$.inputs",
                               "debug.$": "$$.Execution.Input.debug",
+                              "base_url.$": "$$.Execution.Input.base_url",
                               "target_region.$": "$$.Execution.Input.target_region"
                             },
                             "Next": "Create Snapshot Lambda"
@@ -388,6 +392,7 @@ Resources:
                             "Parameters": {
                               "inputs.$": "$.inputs",
                               "bear.$": "$$.Execution.Input.bear",
+                              "base_url.$": "$$.Execution.Input.base_url",
                               "debug.$": "$$.Execution.Input.debug"
                             },
                             "Next": "Monitor Task Lambda"
@@ -408,6 +413,7 @@ Resources:
                 "Parameters": {
                   "inputs.$": "$",
                   "debug.$": "$$.Execution.Input.debug",
+                  "base_url.$": "$$.Execution.Input.base_url",
                   "target_region.$": "$$.Execution.Input.target_region",
                   "velero_file_s3_uri.$": "$$.Execution.Input.velero_file_s3_uri",
                   "velero_file_s3_uri_test.$": "$$.Execution.Input.velero_file_s3_uri_test"
