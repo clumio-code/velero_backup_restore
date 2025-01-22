@@ -1,0 +1,16 @@
+{
+  "velero_file_s3_uri": "s3://111222333444-us-east-1-bucket/velero-schedule-2516-managed-backup-dev-20240805090000-volumesnapshots.json.gz",
+  "velero_file_s3_uri_test": "s3://111222333444-us-east-1-bucket/test/velero-schedule-2516-managed-backup-dev-20240805090000-volumesnapshots.json.gz",
+  "velero_file_segment_size": 5,
+  "source_account": "111222333444",
+  "source_region": "us-east-2",
+  "end_search_day_offset": 10,
+  "bear": "eyJh...Clumio.api.token...",
+  "target_region": "us-east-1",
+  "target_account": "111222333444",
+  "target_aws_az": "us-east-1c",
+  "target_iops": "",
+  "target_volume_type": "",
+  "target_kms_key_native_id": "",
+  "debug": 0
+}

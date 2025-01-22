@@ -1,0 +1,456 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Clumio bulk restore deployment
+Parameters:
+  LambdaCodeLocationBucket:
+    Description: S3 Bucket that contains the lambda zip file
+    Type: String
+    Default: s3-bucket-where-zip-file-is-placed
+  LambdaIAMRole:
+    Description: Role to run lambda and step functions
+    Type: String
+    Default: arn:aws:iam::111222333444:role/run-role-for-lambda-and-step-functions
+  LambdaZipObject:
+    Description: path and name of zip file in LambdaCodeLocationBucket
+    Type: String
+    Default: clumio_eks_ebs_restore_sa.zip
+Resources:
+  ClumioToken:
+    Type: 'AWS::SecretsManager::Secret'
+    Properties:
+      Name: "clumio/token/velero_restore"
+      Description: Clumio token for bulk restore
+      SecretString: '{"username":"FillInUserName","token":"FillInToken"}'
+      Tags:
+        - Key: Clumio
+          Value: clumio_bulk_restore_api_token
+  List:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: clumio_ebs_list_backups_velero
+      Runtime: python3.12
+      Timeout: 60
+      Role: !Ref LambdaIAMRole
+      Handler: clumio_ebs_list_backups_velero.lambda_handler
+      Code:
+        S3Bucket: !Ref LambdaCodeLocationBucket
+        S3Key: !Ref LambdaZipObject
+      Description: clumio_ebs_list_backups_velero
+      TracingConfig:
+        Mode: Active
+  Restore:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: clumio_ebs_restore_velero
+      Runtime: python3.12
+      Timeout: 60
+      Role: !Ref LambdaIAMRole
+      Handler: clumio_ebs_restore_velero.lambda_handler
+      Code:
+        S3Bucket: !Ref LambdaCodeLocationBucket
+        S3Key: !Ref LambdaZipObject
+      Description: clumio_ebs_restore_velero
+      TracingConfig:
+        Mode: Active
+  Task:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: clumio_retrieve_ebs_task_velero
+      Runtime: python3.12
+      Timeout: 60
+      Role: !Ref LambdaIAMRole
+      Handler: clumio_retrieve_ebs_task_velero.lambda_handler
+      Code:
+        S3Bucket: !Ref LambdaCodeLocationBucket
+        S3Key: !Ref LambdaZipObject
+      Description: clumio_retrieve_ebs_task_velero
+      TracingConfig:
+        Mode: Active
+  Snapshot:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: aws_create_volume_snapshot_sa
+      Runtime: python3.12
+      Timeout: 60
+      Role: !Ref LambdaIAMRole
+      Handler: aws_create_volume_snapshot_sa.lambda_handler
+      Code:
+        S3Bucket: !Ref LambdaCodeLocationBucket
+        S3Key: !Ref LambdaZipObject
+      Description: aws_create_volume_snapshot_sa
+      TracingConfig:
+        Mode: Active
+  Parse:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: parse_velero_source_file_sa
+      Runtime: python3.12
+      Timeout: 60
+      Role: !Ref LambdaIAMRole
+      Handler: parse_velero_source_file_sa.lambda_handler
+      Code:
+        S3Bucket: !Ref LambdaCodeLocationBucket
+        S3Key: !Ref LambdaZipObject
+      Description: parse_velero_source_file_sa
+      TracingConfig:
+        Mode: Active
+  Generate:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: update_manifest_sa
+      Runtime: python3.12
+      Timeout: 60
+      Role: !Ref LambdaIAMRole
+      Handler: update_manifest_sa.lambda_handler
+      Code:
+        S3Bucket: !Ref LambdaCodeLocationBucket
+        S3Key: !Ref LambdaZipObject
+      Description: update_manifest_sa
+      TracingConfig:
+        Mode: Active
+  BulkRestoreStepFunction:
+    Type: "AWS::StepFunctions::StateMachine"
+    Properties:
+      StateMachineName: clumio-eks-ebs-restore-single-account
+      DefinitionString:
+        !Sub
+        - |-
+          {
+            "Comment": "A description of my state machine",
+            "StartAt": "Input to read and parse input file",
+            "States": {
+              "Input to read and parse input file": {
+                "Type": "Pass",
+                "Next": "Parse Velero File",
+                "Parameters": {
+                  "target_region.$": "$$.Execution.Input.target_region",
+                  "velero_file_s3_uri.$": "$$.Execution.Input.velero_file_s3_uri",
+                  "velero_file_segment_size.$": "$$.Execution.Input.velero_file_segment_size",
+                  "debug.$": "$$.Execution.Input.debug"
+                }
+              },
+              "Parse Velero File": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::lambda:invoke",
+                "OutputPath": "$.Payload",
+                "Parameters": {
+                  "Payload.$": "$",
+                  "FunctionName": "${ParseArn}:$LATEST"
+                },
+                "Retry": [
+                  {
+                    "ErrorEquals": [
+                      "Lambda.ServiceException",
+                      "Lambda.AWSLambdaException",
+                      "Lambda.SdkClientException",
+                      "Lambda.TooManyRequestsException"
+                    ],
+                    "IntervalSeconds": 1,
+                    "MaxAttempts": 3,
+                    "BackoffRate": 2
+                  }
+                ],
+                "Next": "Split Lists"
+              },
+              "Split Lists": {
+                "Type": "Map",
+                "ItemsPath": "$.inputs.records",
+                "Next": "Inputs to Gather",
+                "ItemSelector": {
+                  "size": 10,
+                  "day_offset.$": "$.inputs.day_offset",
+                  "records.$": "$$.Map.Item.Value"
+                },
+                "ItemProcessor": {
+                  "ProcessorConfig": {
+                    "Mode": "INLINE"
+                  },
+                  "StartAt": "Parse List",
+                  "States": {
+                    "Parse List": {
+                      "Type": "Map",
+                      "ItemsPath": "$.records",
+                      "Next": "Consolidate output waiter 1",
+                      "ItemSelector": {
+                        "size": 10,
+                        "day_offset.$": "$.day_offset",
+                        "record.$": "$$.Map.Item.Value"
+                      },
+                      "ItemProcessor": {
+                        "ProcessorConfig": {
+                          "Mode": "INLINE"
+                        },
+                        "StartAt": "Input to Get EBS Volume backup",
+                        "States": {
+                          "Input to Get EBS Volume backup": {
+                            "Type": "Pass",
+                            "Next": "List EBS Volume Lambda",
+                            "Parameters": {
+                              "bear.$": "$$.Execution.Input.bear",
+                              "source_account.$": "$$.Execution.Input.source_account",
+                              "source_region.$": "$$.Execution.Input.source_region",
+                              "start_search_day_offset.$": "$.day_offset",
+                              "end_search_day_offset.$": "$$.Execution.Input.end_search_day_offset",
+                              "velero_manifest.$": "$.record",
+                              "debug.$": "$$.Execution.Input.debug"
+                            }
+                          },
+                          "List EBS Volume Lambda": {
+                            "Type": "Task",
+                            "Resource": "arn:aws:states:::lambda:invoke",
+                            "OutputPath": "$.Payload",
+                            "Parameters": {
+                              "Payload.$": "$",
+                              "FunctionName": "${ListArn}:$LATEST"
+                            },
+                            "Retry": [
+                              {
+                                "ErrorEquals": [
+                                  "Lambda.ServiceException",
+                                  "Lambda.AWSLambdaException",
+                                  "Lambda.SdkClientException",
+                                  "Lambda.TooManyRequestsException"
+                                ],
+                                "IntervalSeconds": 1,
+                                "MaxAttempts": 3,
+                                "BackoffRate": 2
+                              }
+                            ],
+                            "Next": "Check List backup status"
+                          },
+                          "Check List backup status": {
+                            "Type": "Choice",
+                            "Choices": [
+                              {
+                                "Variable": "$.status",
+                                "NumericEquals": 200,
+                                "Next": "Inputs for Clumio EBS Restore"
+                              }
+                            ],
+                            "Default": "Fail"
+                          },
+                          "Inputs for Clumio EBS Restore": {
+                            "Type": "Pass",
+                            "Parameters": {
+                              "inputs.$": "$.inputs",
+                              "bear.$": "$$.Execution.Input.bear",
+                              "debug.$": "$$.Execution.Input.debug",
+                              "target_account.$": "$$.Execution.Input.target_account",
+                              "target_region.$": "$$.Execution.Input.target_region",
+                              "target_aws_az.$": "$$.Execution.Input.target_aws_az",
+                              "target_iops.$": "$$.Execution.Input.target_iops",
+                              "target_volume_type.$": "$$.Execution.Input.target_volume_type",
+                              "target_kms_key_native_id.$": "$$.Execution.Input.target_kms_key_native_id"
+                            },
+                            "Next": "Restore EBS Volume Lambda"
+                          },
+                          "Restore EBS Volume Lambda": {
+                            "Type": "Task",
+                            "Resource": "arn:aws:states:::lambda:invoke",
+                            "OutputPath": "$.Payload",
+                            "Parameters": {
+                              "Payload.$": "$",
+                              "FunctionName": "${RestoreArn}:$LATEST"
+                            },
+                            "Retry": [
+                              {
+                                "ErrorEquals": [
+                                  "Lambda.ServiceException",
+                                  "Lambda.AWSLambdaException",
+                                  "Lambda.SdkClientException",
+                                  "Lambda.TooManyRequestsException"
+                                ],
+                                "IntervalSeconds": 1,
+                                "MaxAttempts": 3,
+                                "BackoffRate": 2
+                              }
+                            ],
+                            "Next": "Check Restore status"
+                          },
+                          "Check Restore status": {
+                            "Type": "Choice",
+                            "Choices": [
+                              {
+                                "Variable": "$.status",
+                                "NumericEquals": 200,
+                                "Next": "Inputs for Monitor Clumio Task"
+                              }
+                            ],
+                            "Default": "Fail"
+                          },
+                          "Inputs for Monitor Clumio Task": {
+                            "Type": "Pass",
+                            "Parameters": {
+                              "inputs.$": "$.inputs",
+                              "bear.$": "$$.Execution.Input.bear",
+                              "debug.$": "$$.Execution.Input.debug"
+                            },
+                            "Next": "Monitor Task Lambda"
+                          },
+                          "Monitor Task Lambda": {
+                            "Type": "Task",
+                            "Resource": "arn:aws:states:::lambda:invoke",
+                            "OutputPath": "$.Payload",
+                            "Parameters": {
+                              "Payload.$": "$",
+                              "FunctionName": "${TaskArn}:$LATEST"
+                            },
+                            "Retry": [
+                              {
+                                "ErrorEquals": [
+                                  "Lambda.ServiceException",
+                                  "Lambda.AWSLambdaException",
+                                  "Lambda.SdkClientException",
+                                  "Lambda.TooManyRequestsException"
+                                ],
+                                "IntervalSeconds": 1,
+                                "MaxAttempts": 3,
+                                "BackoffRate": 2
+                              }
+                            ],
+                            "Next": "Check Task Completes status"
+                          },
+                          "Check Task Completes status": {
+                            "Type": "Choice",
+                            "Choices": [
+                              {
+                                "Variable": "$.status",
+                                "NumericEquals": 200,
+                                "Next": "Inputs for Create Snapshot"
+                              },
+                              {
+                                "Variable": "$.status",
+                                "NumericEquals": 205,
+                                "Next": "Delay 30"
+                              }
+                            ],
+                            "Default": "Fail"
+                          },
+                          "Delay 30": {
+                            "Type": "Wait",
+                            "Seconds": 30,
+                            "Next": "Re:set inputs for Monitor Task"
+                          },
+                          "Inputs for Create Snapshot": {
+                            "Type": "Pass",
+                            "Parameters": {
+                              "inputs.$": "$.inputs",
+                              "debug.$": "$$.Execution.Input.debug",
+                              "target_region.$": "$$.Execution.Input.target_region"
+                            },
+                            "Next": "Create Snapshot Lambda"
+                          },
+                          "Create Snapshot Lambda": {
+                            "Type": "Task",
+                            "Resource": "arn:aws:states:::lambda:invoke",
+                            "OutputPath": "$.Payload",
+                            "Parameters": {
+                              "Payload.$": "$",
+                              "FunctionName": "${SnapshotArn}:$LATEST"
+                            },
+                            "Retry": [
+                              {
+                                "ErrorEquals": [
+                                  "Lambda.ServiceException",
+                                  "Lambda.AWSLambdaException",
+                                  "Lambda.SdkClientException",
+                                  "Lambda.TooManyRequestsException"
+                                ],
+                                "IntervalSeconds": 1,
+                                "MaxAttempts": 3,
+                                "BackoffRate": 2
+                              }
+                            ],
+                            "Next": "Check Snapshot create status"
+                          },
+                          "Check Snapshot create status": {
+                            "Type": "Choice",
+                            "Choices": [
+                              {
+                                "Variable": "$.status",
+                                "NumericEquals": 200,
+                                "Next": "Snapshot create success waiter"
+                              }
+                            ],
+                            "Default": "Fail"
+                          },
+                          "Snapshot create success waiter": {
+                            "Type": "Wait",
+                            "Seconds": 5,
+                            "End": true
+                          },
+                          "Fail": {
+                            "Type": "Wait",
+                            "Seconds": 5,
+                            "End": true
+                          },
+                          "Re:set inputs for Monitor Task": {
+                            "Type": "Pass",
+                            "Parameters": {
+                              "inputs.$": "$.inputs",
+                              "bear.$": "$$.Execution.Input.bear",
+                              "debug.$": "$$.Execution.Input.debug"
+                            },
+                            "Next": "Monitor Task Lambda"
+                          }
+                        }
+                      }
+                    },
+                    "Consolidate output waiter 1": {
+                      "Type": "Wait",
+                      "Seconds": 5,
+                      "End": true
+                    }
+                  }
+                }
+              },
+              "Inputs to Gather": {
+                "Type": "Pass",
+                "Parameters": {
+                  "inputs.$": "$",
+                  "debug.$": "$$.Execution.Input.debug",
+                  "target_region.$": "$$.Execution.Input.target_region",
+                  "velero_file_s3_uri.$": "$$.Execution.Input.velero_file_s3_uri",
+                  "velero_file_s3_uri_test.$": "$$.Execution.Input.velero_file_s3_uri_test"
+                },
+                "Next": "Gather Data Lambda"
+              },
+              "Gather Data Lambda": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::lambda:invoke",
+                "OutputPath": "$.Payload",
+                "Parameters": {
+                  "Payload.$": "$",
+                  "FunctionName": "${GenerateArn}:$LATEST"
+                },
+                "Retry": [
+                  {
+                    "ErrorEquals": [
+                      "Lambda.ServiceException",
+                      "Lambda.AWSLambdaException",
+                      "Lambda.SdkClientException",
+                      "Lambda.TooManyRequestsException"
+                    ],
+                    "IntervalSeconds": 1,
+                    "MaxAttempts": 3,
+                    "BackoffRate": 2
+                  }
+                ],
+                "End": true
+              }
+            }
+          }
+        - {
+            ListArn: !GetAtt [ List, Arn ],
+            RestoreArn: !GetAtt [ Restore, Arn ],
+            TaskArn: !GetAtt [ Task, Arn ],
+            ParseArn: !GetAtt [ Parse, Arn ],
+            SnapshotArn: !GetAtt [ Snapshot, Arn ],
+            GenerateArn: !GetAtt [ Generate, Arn ],
+          }
+      RoleArn: !Ref LambdaIAMRole
+Outputs:
+  ClumioTokenArn:
+    Description: Edit this Secret to add your Clumio API Token
+    Value: !Ref ClumioToken
+    Export:
+      Name: ClumioTokenArn
