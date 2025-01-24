@@ -323,14 +323,14 @@ Resources:
                               {
                                 "Variable": "$.status",
                                 "NumericEquals": 205,
-                                "Next": "Delay 5 mins"
+                                "Next": "Delay 10 mins"
                               }
                             ],
                             "Default": "Fail"
                           },
-                          "Delay 5 mins": {
+                          "Delay 10 mins": {
                             "Type": "Wait",
-                            "Seconds": 300,
+                            "Seconds": 600,
                             "Next": "Re:set inputs for Monitor Task"
                           },
                           "Inputs for Create Snapshot": {

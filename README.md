@@ -34,6 +34,22 @@
 > [!NOTE]
 > YAML file clumio-eks-ebs-restore-deploy-cft-sa.yaml is the CloudFormation (CFT) deployment template.  Deploy this CFT template to setup the solution
 
+## Build
+
+To build you will need a Unix type shell (`bash`, `zsh`, ...), Python 3.12, `make` and `zip`.
+
+```bash
+make build
+```
+
+It will fetch the dependencies and generate the zip file `clumio_velero_restore.zip`
+under the `build` directory alongside the `clumio-eks-ebs-restore-deploy-cft-sa.yaml`
+CloudFormation template.
+
+The zip file must be uploaded to a S3 bucket where it can be accessed by the
+CloudFormation Template when you deploy the solution.
+
+
 > [!TIP]
 > - [ ] A Clumio backup of each of the EBS resources in the Velero backup file must exist for the automation to complete successfully. 
 > - [ ] Identify a S3 bucket where zip file can be copied.
@@ -52,21 +68,22 @@
 
 
 
-| Input Parameter                  | Description                                                                                                 |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------   |
-| bear                             | Clumio API bearer token https://help.clumio.com/docs/api-tokens                                             |
-| velero_file_s3_uri               | URI location of original Velero backup file                                                                 |
-| velero_file_s3_uri_test          | If you dont want to overwrite the original file, URI location to write new Velero backup file               |
-| velero_file_segment_size         | Step function batch job size - maximum value is 40                                                          |
-| source_account                   | AWS account from which the ebs resources where backed up                                                    |
-| source_region                    | AWS region from which the ebs resources where backed up                                                     |
-| end_search_day_offset            | This represents the offset from the current day to the max search time                                      |
-| target_account                   | AWS account where the ebs resource is to be restored                                                        |
-| target_region                    | AWS region where the ebs resource is to be restored                                                         |
-| target_aws_az                    | required, infrastructure value for restore AWS AZ                                                           |
-| target_iops                      | optional, infrastructure value for EBS iops setting                                                         |
-| target_volume_type               | optional, infrastructure value for EBS volume type setting                                                  |                                     |
-| target_kms_key_native_id         | optional, infrastructure value for restore AWS KMS key id                                                   |
+| Input Parameter          | Description                                                                                   |
+|--------------------------|-----------------------------------------------------------------------------------------------|
+| velero_file_s3_uri       | URI location of original Velero backup file                                                   |
+| velero_file_s3_uri_test  | If you dont want to overwrite the original file, URI location to write new Velero backup file |
+| velero_file_segment_size | Step function batch job size - maximum value is 40                                            |
+| bear                     | Clumio API bearer token https://help.clumio.com/docs/api-tokens. Leave empty if using secret. |
+| base_url                 | The base url of the Clumio API.                                                               |
+| source_account           | AWS account from which the ebs resources where backed up                                      |
+| source_region            | AWS region from which the ebs resources where backed up                                       |
+| end_search_day_offset    | This represents the offset from the current day to the max search time                        |
+| target_account           | AWS account where the ebs resource is to be restored                                          |
+| target_region            | AWS region where the ebs resource is to be restored                                           |
+| target_aws_az            | required, infrastructure value for restore AWS AZ                                             |
+| target_iops              | optional, infrastructure value for EBS iops setting                                           |
+| target_volume_type       | optional, infrastructure value for EBS volume type setting                                    |                                     |
+| target_kms_key_native_id | optional, infrastructure value for restore AWS KMS key id                                     |
 
 > [!NOTE]
 > Optional infrastructure target values may still be required based upon the configuration of the original backed up resource

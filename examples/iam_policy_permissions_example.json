@@ -1,0 +1,37 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "s3Allow",
+      "Effect": "Allow",
+      "Action": [
+        "s3:*"
+      ],
+      "Resource": [
+        "arn:aws:s3:::{zip-file-bucket-name}"
+      ]
+    },
+    {
+      "Sid": "lambdaAllow",
+      "Effect": "Allow",
+      "Action": [
+        "states:*",
+        "lambda:*"
+      ],
+      "Resource": [
+        "*"
+      ]
+    },
+    {
+        "Sid": "secretAllow",
+        "Effect": "Allow",
+        "Action": [
+          "secretsmanager:GetSecretValue"
+        ],
+        "Resource": [
+          "[ARN to Restore Token in Secret Manager]",
+          "[ARN to List Token in Secret Manager]"
+        ]
+      }
+  ]
+}
