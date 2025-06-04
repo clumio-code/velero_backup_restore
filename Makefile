@@ -34,4 +34,3 @@ build:
 	pip install -r requirements.txt -t build/lambda/
 	cd build/lambda && zip -r ../clumio_velero_restore.zip .
 	cp code/clumio-eks-ebs-restore-deploy-cft-sa.yaml build/
-	cp code/clumio-eks-ebs-restore-deploy-cft-sa.yaml build/
