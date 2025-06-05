@@ -39,10 +39,7 @@ FOLLOW_DEFAULT_INPUT: Final = '[This field will follow default input]'
 
 def parse_base_url(base_url: str) -> str:
     """Parse the base URL."""
-    if not base_url.startswith('https://'):
-        return base_url
-    return base_url.split('/', maxsplit=3)[2]
-
+    return base_url.removeprefix('https://')
 
 def get_sort_and_ts_filter(
     direction: str | None, start_day_offset: int, end_day_offset: int
@@ -67,11 +64,16 @@ def get_sort_and_ts_filter(
 def get_total_list(function: Callable, api_filter: str, **kwargs: Any) -> list:
     """Wrapper to retry _get_total_list."""
     retry = 5
+    count = 1
     for _ in range(retry):
         try:
             result = _get_total_list(function, api_filter, **kwargs)
             return result
-        except clumio_exception.ClumioException as e:
+        except clumio_exception.ClumioException as exception:
+            count += 1
+            if count > retry:
+                raise exception
+            # If the exception is due to rate limiting, wait and retry.
             time.sleep(retry)
             continue
 
@@ -92,7 +94,8 @@ def _get_total_list(function: Callable, api_filter: str, **kwargs: Any) -> list:
         # Raise error if raw response is not ok.
         if not raw_response.ok:
             raise exceptions.clumio_exception.ClumioException(
-                raw_response.reason, raw_response.content
+                raw_response.reason,
+                f'Response Content: {raw_response.content}, apicall: {str(function)}, api_filter: {api_filter}'
             )
         if not parsed_response.total_count:
             break

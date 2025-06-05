@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Clumio bulk restore deployment
+Description: Clumio Velero restore deployment
 Parameters:
   LambdaCodeLocationBucket:
     Description: S3 Bucket that contains the lambda zip file
@@ -18,17 +18,17 @@ Resources:
     Type: 'AWS::SecretsManager::Secret'
     Properties:
       Name: "clumio/token/velero_restore"
-      Description: Clumio token for bulk restore
+      Description: Clumio token for velero restore
       SecretString: '{"username":"FillInUserName","token":"FillInToken"}'
       Tags:
         - Key: Clumio
-          Value: clumio_bulk_restore_api_token
+          Value: clumio_velero_restore_api_token
   List:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: clumio_ebs_list_backups_velero
       Runtime: python3.12
-      Timeout: 60
+      Timeout: 600
       Role: !Ref LambdaIAMRole
       Handler: clumio_ebs_list_backups_velero.lambda_handler
       Code:
@@ -42,7 +42,7 @@ Resources:
     Properties:
       FunctionName: clumio_ebs_restore_velero
       Runtime: python3.12
-      Timeout: 60
+      Timeout: 600
       Role: !Ref LambdaIAMRole
       Handler: clumio_ebs_restore_velero.lambda_handler
       Code:
@@ -56,7 +56,7 @@ Resources:
     Properties:
       FunctionName: clumio_retrieve_ebs_task_velero
       Runtime: python3.12
-      Timeout: 60
+      Timeout: 600
       Role: !Ref LambdaIAMRole
       Handler: clumio_retrieve_ebs_task_velero.lambda_handler
       Code:
@@ -70,7 +70,7 @@ Resources:
     Properties:
       FunctionName: aws_create_volume_snapshot_sa
       Runtime: python3.12
-      Timeout: 60
+      Timeout: 600
       Role: !Ref LambdaIAMRole
       Handler: aws_create_volume_snapshot_sa.lambda_handler
       Code:
@@ -84,7 +84,7 @@ Resources:
     Properties:
       FunctionName: parse_velero_source_file_sa
       Runtime: python3.12
-      Timeout: 60
+      Timeout: 120
       Role: !Ref LambdaIAMRole
       Handler: parse_velero_source_file_sa.lambda_handler
       Code:
@@ -98,7 +98,7 @@ Resources:
     Properties:
       FunctionName: update_manifest_sa
       Runtime: python3.12
-      Timeout: 60
+      Timeout: 120
       Role: !Ref LambdaIAMRole
       Handler: update_manifest_sa.lambda_handler
       Code:
@@ -107,7 +107,7 @@ Resources:
       Description: update_manifest_sa
       TracingConfig:
         Mode: Active
-  BulkRestoreStepFunction:
+  VeleroRestoreStepFunction:
     Type: "AWS::StepFunctions::StateMachine"
     Properties:
       StateMachineName: clumio-eks-ebs-restore-single-account
@@ -455,8 +455,8 @@ Resources:
           }
       RoleArn: !Ref LambdaIAMRole
 Outputs:
-  ClumioTokenArn:
+  ClumioTokenVeleroArn:
     Description: Edit this Secret to add your Clumio API Token
     Value: !Ref ClumioToken
     Export:
-      Name: ClumioTokenArn
+      Name: ClumioTokenVeleroArn

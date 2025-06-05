@@ -65,6 +65,7 @@ def lambda_handler(events: EventsTypeDef, context: LambdaContext) -> dict[str, A
     sort, api_filter = common.get_sort_and_ts_filter(
         search_direction, start_search_day_offset, end_search_day_offset
     )
+
     try:
         # Get the clumio-assigned id of the volume.
         list_filter = {

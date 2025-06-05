@@ -6,7 +6,7 @@
   "source_region": "us-west-2",
   "end_search_day_offset": 10,
   "bear": "",
-  "base_url": "https://systest-14-uw-2-backend.api.qe.clum.io/api/",
+  "base_url": "us-west-2.api.clumio.com",
   "target_region": "us-west-2",
   "target_account": "345454780574",
   "target_aws_az": "us-west-2d",
