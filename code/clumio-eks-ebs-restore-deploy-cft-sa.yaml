@@ -13,16 +13,11 @@ Parameters:
     Description: path and name of zip file in LambdaCodeLocationBucket
     Type: String
     Default: clumio_eks_ebs_restore_sa.zip
+  ClumioTokenArn:
+    Description: ARN of the Clumio token secret in AWS Secrets Manager
+    Type: String
+    Default: arn:aws:secretsmanager:<aws_region>:<aws_account_id>:secret:clumio/automation/api-token
 Resources:
-  ClumioToken:
-    Type: 'AWS::SecretsManager::Secret'
-    Properties:
-      Name: "clumio/token/velero_restore"
-      Description: Clumio token for velero restore
-      SecretString: '{"username":"FillInUserName","token":"FillInToken"}'
-      Tags:
-        - Key: Clumio
-          Value: clumio_velero_restore_api_token
   List:
     Type: AWS::Lambda::Function
     Properties:
@@ -37,6 +32,9 @@ Resources:
       Description: clumio_ebs_list_backups_velero
       TracingConfig:
         Mode: Active
+      Environment:
+        Variables:
+          CLUMIO_TOKEN_ARN: !Ref ClumioTokenArn
   Restore:
     Type: AWS::Lambda::Function
     Properties:
@@ -51,6 +49,9 @@ Resources:
       Description: clumio_ebs_restore_velero
       TracingConfig:
         Mode: Active
+      Environment:
+        Variables:
+          CLUMIO_TOKEN_ARN: !Ref ClumioTokenArn
   Task:
     Type: AWS::Lambda::Function
     Properties:
@@ -65,6 +66,9 @@ Resources:
       Description: clumio_retrieve_ebs_task_velero
       TracingConfig:
         Mode: Active
+      Environment:
+        Variables:
+          CLUMIO_TOKEN_ARN: !Ref ClumioTokenArn
   Snapshot:
     Type: AWS::Lambda::Function
     Properties:
@@ -79,6 +83,9 @@ Resources:
       Description: aws_create_volume_snapshot_sa
       TracingConfig:
         Mode: Active
+      Environment:
+        Variables:
+          CLUMIO_TOKEN_ARN: !Ref ClumioTokenArn
   Parse:
     Type: AWS::Lambda::Function
     Properties:
@@ -93,6 +100,9 @@ Resources:
       Description: parse_velero_source_file_sa
       TracingConfig:
         Mode: Active
+      Environment:
+        Variables:
+          CLUMIO_TOKEN_ARN: !Ref ClumioTokenArn
   Generate:
     Type: AWS::Lambda::Function
     Properties:
@@ -107,6 +117,9 @@ Resources:
       Description: update_manifest_sa
       TracingConfig:
         Mode: Active
+      Environment:
+        Variables:
+          CLUMIO_TOKEN_ARN: !Ref ClumioTokenArn
   VeleroRestoreStepFunction:
     Type: "AWS::StepFunctions::StateMachine"
     Properties:
@@ -454,9 +467,3 @@ Resources:
             GenerateArn: !GetAtt [ Generate, Arn ],
           }
       RoleArn: !Ref LambdaIAMRole
-Outputs:
-  ClumioTokenVeleroArn:
-    Description: Edit this Secret to add your Clumio API Token
-    Value: !Ref ClumioToken
-    Export:
-      Name: ClumioTokenVeleroArn
