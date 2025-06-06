@@ -54,7 +54,7 @@ CloudFormation Template when you deploy the solution.
 > - [ ] A Clumio backup of each of the EBS resources in the Velero backup file must exist for the automation to complete successfully. 
 > - [ ] Identify a S3 bucket where zip file can be copied.
 > - [ ] Identify an IAM Role that has the capability to run both the lambda functions and the state machine
-> - [ ] Add an AWS secret which has the clumio api token to access clumio service. token / <api_token>
+> - [ ] Add an AWS secret which has the clumio api token to access clumio service.
 > - [ ] Copy ZIP file from the git repository to the S3 bucket
 > - [ ] Run the CFT YAML file.  You will need to enter the S3 bucket and IAM role, AWS secret ARN as parameters to run the CFT YAML file
 > - [ ] Create an input JSON file for the state machine based upon the example JSON and the descriptions below
