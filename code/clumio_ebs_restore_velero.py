@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import random
 import string
+import logging
 import time
 from typing import TYPE_CHECKING, Any, Final
 
@@ -29,59 +30,65 @@ if TYPE_CHECKING:
     from common import EventsTypeDef
 
 
-IOPS_APPLICABLE_TYPE: Final = ['gp3', 'io1', 'io2']
+IOPS_APPLICABLE_TYPE: Final = ["gp3", "io1", "io2"]
+
+logger = logging.getLogger(__name__)
 
 
 # noqa: PLR0911, PLR0912, PLR0915
 def lambda_handler(events: EventsTypeDef, context: LambdaContext) -> dict[str, Any]:  # noqa: PLR0911, PLR0912, PLR0915
     """Handle the lambda function to bulk restore EBS."""
-    inputs: dict = events.get('inputs', {})
-    record: dict = inputs.get('record', [{}])[0]
-    bear: str | None = events.get('bear', None)
-    base_url: str = events.get('base_url', common.DEFAULT_BASE_URL)
-    target_account: str | None = events.get('target_account', None)
-    target_region: str | None = events.get('target_region', None)
-    target_az: str | None = events.get('target_aws_az', None)
-    target_kms_key_native_id: str | None = events.get('target_kms_key_native_id', None)
-    target_iops: str | int | None = events.get('target_iops', None)
-    target_volume_type: str | None = events.get('target_volume_type', None)
+    inputs: dict = events.get("inputs", {})
+    record: dict = inputs.get("record", [{}])[0]
+    bear: str | None = events.get("bear", None)
+    base_url: str = events.get("base_url", common.DEFAULT_BASE_URL)
+    target_account: str | None = events.get("target_account", None)
+    target_region: str | None = events.get("target_region", None)
+    target_az: str | None = events.get("target_aws_az", None)
+    target_kms_key_native_id: str | None = events.get("target_kms_key_native_id", None)
+    target_iops: str | int | None = events.get("target_iops", None)
+    target_volume_type: str | None = events.get("target_volume_type", None)
     velero_manifest_dict = inputs.get("velero_manifest", None)
 
     inputs = {
-        'resource_type': 'EBS',
-        'run_token': None,
-        'task': None,
-        'source_backup_id': None,
-        'source_volume_id': None,
+        "resource_type": "EBS",
+        "run_token": None,
+        "task": None,
+        "source_backup_id": None,
+        "source_volume_id": None,
         "velero_manifest": velero_manifest_dict,
     }
 
     if not record:
-        return {'status': 205, 'msg': 'no records', 'inputs': inputs}
+        return {"status": 205, "msg": "no records", "inputs": inputs}
 
     # If clumio bearer token is not passed as an input read it from the AWS secret.
     if not bear:
         status, msg = common.get_bearer_token()
         if status != common.STATUS_OK:
-            return {'status': status, 'msg': msg}
+            return {"status": status, "msg": msg}
         bear = msg
 
     # Initiate the Clumio API client.
     base_url = common.parse_base_url(base_url)
-    config = configuration.Configuration(api_token=bear, hostname=base_url, raw_response=True)
+    config = configuration.Configuration(
+        api_token=bear, hostname=base_url, raw_response=True
+    )
     client = clumioapi_client.ClumioAPIClient(config)
-    run_token = ''.join(random.choices(string.ascii_letters, k=13))  # noqa: S311
+    run_token = "".join(random.choices(string.ascii_letters, k=13))  # noqa: S311
 
-    backup_record = record.get('backup_record', {})
-    source_backup_id = backup_record.get('source_backup_id', None)
-    source_volume_id = record.get('volume_id')
-    source_volume_type = backup_record.get('source_volume_type', None)
-    source_iops = backup_record.get('source_iops', None)
+    backup_record = record.get("backup_record", {})
+    source_backup_id = backup_record.get("source_backup_id", None)
+    source_volume_id = record.get("volume_id")
+    source_volume_type = backup_record.get("source_volume_type", None)
+    source_iops = backup_record.get("source_iops", None)
 
     # Retrieve the environment id.
-    status_code, result_msg = common.get_environment_id(client, target_account, target_region)
+    status_code, result_msg = common.get_environment_id(
+        client, target_account, target_region
+    )
     if status_code != common.STATUS_OK:
-        return {'status': status_code, 'msg': result_msg, 'inputs': inputs}
+        return {"status": status_code, "msg": result_msg, "inputs": inputs}
     target_env_id = result_msg
 
     # Validate inputs.
@@ -91,25 +98,25 @@ def lambda_handler(events: EventsTypeDef, context: LambdaContext) -> dict[str, A
         if target_iops == 0:
             target_iops = None
     except (TypeError, ValueError) as e:
-        error = f'invalid target_iops input: {e}'
-        return {'status': 401, 'records': [], 'msg': f'failed {error}'}
+        error = f"invalid target_iops input: {e}"
+        return {"status": 401, "records": [], "msg": f"failed {error}"}
     p_type = target_volume_type or source_volume_type
     if target_iops is not None and p_type not in IOPS_APPLICABLE_TYPE:
         return {
-            'status': 400,
-            'msg': 'IOPS field is not applicable for either source or target volume type.',
-            'inputs': {
-                'target_volume_type': target_volume_type,
-                'source_volume_type': source_volume_type,
+            "status": 400,
+            "msg": "IOPS field is not applicable for either source or target volume type.",
+            "inputs": {
+                "target_volume_type": target_volume_type,
+                "source_volume_type": source_volume_type,
             },
         }
 
     # Perform the restore.
     source = models.ebs_restore_source.EBSRestoreSource(backup_id=source_backup_id)
     tags_list = [
-        {'key': 'org_volume_id' , 'value': source_volume_id},
-        {'key': 'source_backup_id' , 'value': source_backup_id},
-        {'key': 'do-not-backup', 'value': 'true'}
+        {"key": "org_volume_id", "value": source_volume_id},
+        {"key": "source_backup_id", "value": source_backup_id},
+        {"key": "do-not-backup", "value": "true"},
     ]
     restore_target = models.ebs_restore_target.EBSRestoreTarget(
         aws_az=target_az,
@@ -124,32 +131,31 @@ def lambda_handler(events: EventsTypeDef, context: LambdaContext) -> dict[str, A
     )
 
     inputs = {
-        'resource_type': 'EBS',
-        'run_token': run_token,
-        'task': None,
-        'source_backup_id': source_backup_id,
-        'source_volume_id': source_volume_id,
-        'velero_manifest': velero_manifest_dict,
+        "resource_type": "EBS",
+        "run_token": run_token,
+        "task": None,
+        "source_backup_id": source_backup_id,
+        "source_volume_id": source_volume_id,
+        "velero_manifest": velero_manifest_dict,
     }
 
     try:
-        raw_response = None
-        for idx in range(5):
-            raw_response, result = client.restored_aws_ebs_volumes_v2.restore_aws_ebs_volume(
-                body=request
-            )
-            # Return if non-ok status.
-            if not raw_response.ok:
-                time.sleep(idx * 1)
-                continue
-            inputs['task'] = result.task_id
-            break
+        raw_response, result = common.invoke_sdk_method(
+            function=client.restored_aws_ebs_volumes_v2.restore_aws_ebs_volume,
+            body=request,
+        )
+        inputs["task"] = result.task_id
         if not raw_response.ok:
             return {
-                'status': raw_response.status_code,
-                'msg': raw_response.content,
-                'inputs': inputs,
+                "status": raw_response.status_code,
+                "msg": raw_response.content,
+                "inputs": inputs,
             }
-        return {'status': 200, 'msg': 'restore started', 'inputs': inputs}
+        else:
+            return {"status": 200, "msg": "restore started", "inputs": inputs}
     except exceptions.clumio_exception.ClumioException as e:
-        return {'status': '400', 'msg': f'Failure during restore request: {e}', 'inputs': inputs}
+        return {
+            "status": "400",
+            "msg": f"Failure during restore request: {e}",
+            "inputs": inputs,
+        }
