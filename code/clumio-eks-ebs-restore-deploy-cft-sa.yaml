@@ -4,20 +4,25 @@ Parameters:
   LambdaCodeLocationBucket:
     Description: S3 Bucket that contains the lambda zip file
     Type: String
-    Default: s3-bucket-where-zip-file-is-placed
+    Default: clumio-automation
   LambdaIAMRole:
     Description: Role to run lambda and step functions
     Type: String
-    Default: arn:aws:iam::111222333444:role/run-role-for-lambda-and-step-functions
+    Default: arn:aws:iam::<account_id>:role/clumio-bulk-restore-role
   LambdaZipObject:
     Description: path and name of zip file in LambdaCodeLocationBucket
     Type: String
-    Default: clumio_eks_ebs_restore_sa.zip
+    Default: clumio_velero_restore.zip
   ClumioTokenArn:
     Description: ARN of the Clumio token secret in AWS Secrets Manager
     Type: String
-    Default: arn:aws:secretsmanager:<aws_region>:<aws_account_id>:secret:clumio/automation/api-token
+    Default: arn:aws:secretsmanager:us-west-2:<account_id>:secret:clumio/automation/api-token-WcerOh
 Resources:
+  ListLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/velero-backup-restore
+      RetentionInDays: 7
   List:
     Type: AWS::Lambda::Function
     Properties:
@@ -35,6 +40,11 @@ Resources:
       Environment:
         Variables:
           CLUMIO_TOKEN_ARN: !Ref ClumioTokenArn
+      LoggingConfig:
+        ApplicationLogLevel: INFO
+        LogFormat: JSON
+        LogGroup: !Ref ListLogGroup
+        SystemLogLevel: INFO
   Restore:
     Type: AWS::Lambda::Function
     Properties:
@@ -52,6 +62,11 @@ Resources:
       Environment:
         Variables:
           CLUMIO_TOKEN_ARN: !Ref ClumioTokenArn
+      LoggingConfig:
+        ApplicationLogLevel: INFO
+        LogFormat: JSON
+        LogGroup: !Ref ListLogGroup
+        SystemLogLevel: INFO
   Task:
     Type: AWS::Lambda::Function
     Properties:
@@ -69,6 +84,11 @@ Resources:
       Environment:
         Variables:
           CLUMIO_TOKEN_ARN: !Ref ClumioTokenArn
+      LoggingConfig:
+        ApplicationLogLevel: INFO
+        LogFormat: JSON
+        LogGroup: !Ref ListLogGroup
+        SystemLogLevel: INFO
   Snapshot:
     Type: AWS::Lambda::Function
     Properties:
@@ -86,6 +106,11 @@ Resources:
       Environment:
         Variables:
           CLUMIO_TOKEN_ARN: !Ref ClumioTokenArn
+      LoggingConfig:
+        ApplicationLogLevel: INFO
+        LogFormat: JSON
+        LogGroup: !Ref ListLogGroup
+        SystemLogLevel: INFO
   Parse:
     Type: AWS::Lambda::Function
     Properties:
@@ -103,6 +128,11 @@ Resources:
       Environment:
         Variables:
           CLUMIO_TOKEN_ARN: !Ref ClumioTokenArn
+      LoggingConfig:
+        ApplicationLogLevel: INFO
+        LogFormat: JSON
+        LogGroup: !Ref ListLogGroup
+        SystemLogLevel: INFO
   Generate:
     Type: AWS::Lambda::Function
     Properties:
@@ -120,6 +150,11 @@ Resources:
       Environment:
         Variables:
           CLUMIO_TOKEN_ARN: !Ref ClumioTokenArn
+      LoggingConfig:
+        ApplicationLogLevel: INFO
+        LogFormat: JSON
+        LogGroup: !Ref ListLogGroup
+        SystemLogLevel: INFO
   VeleroRestoreStepFunction:
     Type: "AWS::StepFunctions::StateMachine"
     Properties:
@@ -336,14 +371,14 @@ Resources:
                               {
                                 "Variable": "$.status",
                                 "NumericEquals": 205,
-                                "Next": "Delay 10 mins"
+                                "Next": "Delay 2 mins"
                               }
                             ],
                             "Default": "Fail"
                           },
-                          "Delay 10 mins": {
+                          "Delay 2 mins": {
                             "Type": "Wait",
-                            "Seconds": 600,
+                            "Seconds": 120,
                             "Next": "Re:set inputs for Monitor Task"
                           },
                           "Inputs for Create Snapshot": {

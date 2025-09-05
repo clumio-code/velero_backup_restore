@@ -28,13 +28,13 @@ if TYPE_CHECKING:
 
 def lambda_handler(events: EventsTypeDef, context: LambdaContext) -> dict[str, Any]:
     """Handle the lambda function to retrieve the EC2 restore task."""
-    bear: str | None = events.get('bear', None)
-    base_url: str = events.get('base_url', common.DEFAULT_BASE_URL)
-    inputs: dict = events.get('inputs', {})
-    task: str | None = inputs.get('task', None)
+    bear: str | None = events.get("bear", None)
+    base_url: str = events.get("base_url", common.DEFAULT_BASE_URL)
+    inputs: dict = events.get("inputs", {})
+    task: str | None = inputs.get("task", None)
 
     if not task:
-        return {'status': 402, 'msg': 'no task id', 'inputs': inputs}
+        return {"status": 402, "msg": "no task id", "inputs": inputs}
 
     task_id = task
 
@@ -42,7 +42,7 @@ def lambda_handler(events: EventsTypeDef, context: LambdaContext) -> dict[str, A
     if not bear:
         status, msg = common.get_bearer_token()
         if status != common.STATUS_OK:
-            return {'status': status, 'msg': msg}
+            return {"status": status, "msg": msg}
         bear = msg
 
     # Initiate the Clumio API client.
@@ -54,10 +54,14 @@ def lambda_handler(events: EventsTypeDef, context: LambdaContext) -> dict[str, A
         response = client.tasks_v1.read_task(task_id=task_id)
         status = response.status
     except TypeError:
-        return {'status': 401, 'msg': 'user not authorized to access task.', 'inputs': inputs}
+        return {
+            "status": 401,
+            "msg": "user not authorized to access task.",
+            "inputs": inputs,
+        }
 
-    if status == 'completed':
-        return {'status': 200, 'msg': 'task completed', 'inputs': inputs}
-    if status in ('failed', 'aborted'):
-        return {'status': 403, 'msg': f'task failed {status}', 'inputs': inputs}
-    return {'status': 205, 'msg': f'task not done - {status}', 'inputs': inputs}
+    if status == "completed":
+        return {"status": 200, "msg": "task completed", "inputs": inputs}
+    if status in ("failed", "aborted"):
+        return {"status": 403, "msg": f"task failed {status}", "inputs": inputs}
+    return {"status": 205, "msg": f"task not done - {status}", "inputs": inputs}
