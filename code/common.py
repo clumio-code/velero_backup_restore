@@ -8,6 +8,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+from requests import adapters
+from urllib3.util import Retry
 import secrets
 import string
 import time
@@ -40,6 +42,25 @@ MAX_RETRY: Final = 5
 START_TIMESTAMP_STR: Final = "start_timestamp"
 STATUS_OK: Final = 200
 FOLLOW_DEFAULT_INPUT: Final = "[This field will follow default input]"
+
+
+# Define the retry strategy
+retry_strategy = Retry(
+    total=8,  # Total number of retries
+    status_forcelist=[429, 500, 502, 503, 504],  # Retry on these HTTP status codes
+    allowed_methods=[
+        "HEAD",
+        "GET",
+        "OPTIONS",
+        "PUT",
+        "POST",
+        "DELETE",
+    ],  # Retry on these methods
+    backoff_factor=2,  # A delay factor for exponential backoff.
+    # Sleep for: {backoff factor} * (2 ** ({number of total retries} - 1))
+    # e.g., 0s, 2s, 4s, 8s, 16s, 32s, 64s, 128s
+)
+retry_adapter = adapters.HTTPAdapter(max_retries=retry_strategy)
 
 
 def parse_base_url(base_url: str) -> str:

@@ -49,6 +49,8 @@ def lambda_handler(events: EventsTypeDef, context: LambdaContext) -> dict[str, A
     base_url = common.parse_base_url(base_url)
     config = configuration.Configuration(api_token=bear, hostname=base_url)
     client = clumioapi_client.ClumioAPIClient(config)
+    client.base_controller.client.session.mount("https://", common.retry_adapter)
+    client.base_controller.client.session.mount("http://", common.retry_adapter)
 
     try:
         response = client.tasks_v1.read_task(task_id=task_id)
