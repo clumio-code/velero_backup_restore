@@ -75,6 +75,8 @@ def lambda_handler(events: EventsTypeDef, context: LambdaContext) -> dict[str, A
         api_token=bear, hostname=base_url, raw_response=True
     )
     client = clumioapi_client.ClumioAPIClient(config)
+    client.base_controller.client.session.mount("https://", common.retry_adapter)
+    client.base_controller.client.session.mount("http://", common.retry_adapter)
     run_token = "".join(random.choices(string.ascii_letters, k=13))  # noqa: S311
 
     backup_record = record.get("backup_record", {})

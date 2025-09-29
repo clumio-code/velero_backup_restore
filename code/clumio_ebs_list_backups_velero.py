@@ -70,6 +70,8 @@ def lambda_handler(events: EventsTypeDef, context: LambdaContext) -> dict[str, A
         api_token=bear, hostname=base_url, raw_response=True
     )
     client = clumioapi_client.ClumioAPIClient(config)
+    client.base_controller.client.session.mount("https://", common.retry_adapter)
+    client.base_controller.client.session.mount("http://", common.retry_adapter)
     sort, api_filter = common.get_sort_and_ts_filter(
         search_direction, start_search_day_offset, end_search_day_offset
     )
